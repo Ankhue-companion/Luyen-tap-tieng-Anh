@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz Multiple Choice Pro - Touch Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #0f172a; 
+            color: #f8fafc; 
+            -webkit-tap-highlight-color: transparent; /* Khử viền highlight tối màu khi chạm giữ trên mobile */
+        }
+        #range-screen, #main-content, #print-section { display: none; }
+        
+        /* Tối ưu hóa kích thước nút bấm để dễ chạm bằng ngón tay (Touch Target đạt chuẩn tối thiểu 48px) */
+        .choice-btn { 
+            transition: all 0.2s; 
+            border: 2px solid #1e293b; 
+            min-height: 52px; 
+            touch-action: manipulation; /* Khử delay 300ms khi nhấn trên màn hình cảm ứng */
+        }
+        .choice-btn:hover:not(:disabled) { border-color: #38bdf8; background-color: #1e293b; }
+        .choice-btn:active:not(:disabled) { scale: 0.99; }
+        .choice-btn.correct { background-color: #059669 !important; border-color: #34d399 !important; color: white; }
+        .choice-btn.wrong { background-color: #dc2626 !important; border-color: #f87171 !important; color: white; }
+        
+        #timer-bar { transition: width 1s linear; }
+        button, input, label { min-height: 48px; touch-action: manipulation; }
+
+        /* Cấu trúc cho in PDF */
+        @media print {
+            body { background: white !important; color: black !important; padding: 0 !important; }
+            #main-content, #range-screen, #lock-screen { display: none !important; }
+            #print-section { display: block !important; padding: 20mm; }
+            .print-question { margin-bottom: 25px; page-break-inside: avoid; }
+            .print-choice { margin-left: 10px; margin-bottom: 5px; }
+            .page-break { page-break-before: always; }
+            .print-header { border-bottom: 2px solid #000; margin-bottom: 30px; padding-bottom: 10px; font-weight: bold; font-size: 20px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start md:justify-center p-4 pt-6 md:p-8 selection:bg-sky-500/30">
+
+    <div id="lock-screen" class="w-full max-w-md bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-slate-800 shadow-2xl text-center my-auto">
+        <div class="text-4xl md:text-5xl mb-4">🔐</div>
+        <h2 class="text-xl md:text-2xl font-bold mb-6 text-sky-400">Multiple choice exercise</h2>
+        <input type="password" id="pass-input" inputmode="numeric" pattern="[0-9]*" class="w-full bg-slate-800 border-2 border-slate-700 p-3 md:p-4 rounded-xl text-center text-xl md:text-2xl mb-4 outline-none focus:border-sky-500 text-white" placeholder="Enter password here...">
+        <button onclick="checkPass()" class="w-full bg-sky-500 py-3 md:py-4 rounded-xl font-bold hover:bg-sky-600 active:scale-[0.98] transition-all text-white">START</button>
+    </div>
+
+    <div id="range-screen" class="w-full max-w-md bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-slate-800 shadow-2xl text-center my-auto">
+        <h2 class="text-xl md:text-2xl font-bold mb-6 text-emerald-400">Set up your lesson </h2>
+        
+        <label class="block mb-6 bg-slate-800 p-4 rounded-xl cursor-pointer border border-dashed border-slate-600 hover:bg-slate-700 active:bg-slate-700/50 transition-all">
+            <span id="file-status" class="text-sm md:text-base">📁 Load file (CSV)</span>
+            <input type="file" id="csv-file" accept=".csv" class="hidden">
+        </label>
+        
+        <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
+            <div>
+                <span class="text-xs text-slate-500 block mb-1 uppercase">From question</span>
+                <input type="number" id="range-start" inputmode="numeric" class="w-full bg-slate-800 p-3 rounded-xl text-center border border-slate-700 font-bold text-white" value="1">
+            </div>
+            <div>
+                <span class="text-xs text-slate-500 block mb-1 uppercase">To question (Max: <span id="max-count">0</span>)</span>
+                <input type="number" id="range-end" inputmode="numeric" class="w-full bg-slate-800 p-3 rounded-xl text-center border border-slate-700 font-bold text-white" value="10">
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <span class="text-xs text-rose-400 block mb-1 uppercase font-bold">Time per question (Seconds)</span>
+            <input type="number" id="time-limit" inputmode="numeric" class="w-full bg-rose-950/30 p-3 rounded-xl text-center border border-rose-900/50 font-bold text-rose-400 outline-none" value="150">
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+            <button onclick="exportPDF()" class="w-full sm:flex-1 bg-slate-700 py-3.5 rounded-xl font-bold hover:bg-slate-600 active:scale-[0.98] transition-all text-xs md:text-sm uppercase text-white">Export PDF</button>
+            <button onclick="startGame()" class="w-full sm:flex-[2] bg-emerald-500 py-3.5 rounded-xl font-bold hover:bg-emerald-600 active:scale-[0.98] transition-all uppercase text-white">START</button>
+        </div>
+    </div>
+
+    <div id="main-content" class="w-full max-w-2xl flex flex-col justify-between">
+        <div class="w-full mb-3">
+            <div class="flex justify-between items-center mb-2 px-1">
+                <span id="progress-text" class="text-xs md:text-sm text-slate-500 font-mono">Question: 1/10</span>
+                <span id="score-text" class="text-xs md:text-sm text-emerald-400 font-bold uppercase tracking-widest">RIGHT: 0</span>
+            </div>
+
+            <div class="px-1">
+                <div class="flex justify-between text-[10px] md:text-xs text-slate-400 mb-1 font-bold uppercase">
+                    <span>⏱ TIME</span>
+                    <span id="timer-text" class="text-rose-400">150s</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div id="timer-bar" class="bg-rose-500 h-1.5 rounded-full" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 p-5 md:p-8 rounded-[2rem] border border-slate-800 shadow-xl flex flex-col justify-between flex-grow min-h-[30rem] md:min-h-[34rem]">
+            <div class="flex flex-col justify-start flex-grow">
+                <p id="question-text" class="text-lg md:text-2xl font-bold leading-relaxed mb-6 md:mb-8 text-white text-center whitespace-pre-wrap break-words"></p>
+                <div id="choices-container" class="grid grid-cols-1 gap-3 md:gap-4"></div>
+            </div>
+
+            <div class="w-full mt-4">
+                <div id="explanation" class="hidden my-3 p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs md:text-sm leading-relaxed text-slate-300 max-h-40 overflow-y-auto whitespace-pre-wrap break-words"></div>
+
+                <button id="btn-next" onclick="nextQuestion()" class="hidden w-full bg-sky-500 py-4 rounded-xl font-bold hover:bg-sky-600 active:scale-[0.98] transition-all text-base md:text-lg shadow-lg text-white">NEXT →</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="print-section"></div>
+
+    <script>
+        let fullData = [], currentSession = [], index = 0, score = 0;
+        let timerInterval, timePerQuestion = 15, timeLeft = 0;
+        const SECRET_PASS = "1234";
+
+        function checkPass() {
+            if (document.getElementById('pass-input').value === SECRET_PASS) {
+                document.getElementById('lock-screen').style.display = 'none';
+                document.getElementById('range-screen').style.display = 'block';
+            } else {
+                alert("Sai mật mã!");
+            }
+        }
+
+        // Hỗ trợ nhấn nút Enter để đăng nhập nhanh ở màn khóa nếu dùng bàn phím vật lý
+        document.getElementById("pass-input").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                checkPass();
+            }
+        });
+
+        function parseCSVLine(text) {
+            let p = '', r = [];
+            let q = false;
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i];
+                if (c === '"') { q = !q; }
+                else if (c === ',' && !q) { r.push(p); p = ''; }
+                else { p += c; }
+            }
+            r.push(p);
+            return r;
+        }
+
+        document.getElementById('csv-file').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const lines = event.target.result.split(/\r?\n/);
+                fullData = lines.map(line => {
+                    if (!line.trim()) return null;
+                    const cols = parseCSVLine(line);
+                    return { 
+                        q: cols[0]?.trim().replace(/^"|"$/g, ''), 
+                        options: [
+                            cols[1]?.trim().replace(/^"|"$/g, ''), 
+                            cols[2]?.trim().replace(/^"|"$/g, ''), 
+                            cols[3]?.trim().replace(/^"|"$/g, ''), 
+                            cols[4]?.trim().replace(/^"|"$/g, '')
+                        ],
+                        ans: cols[5]?.trim().replace(/^"|"$/g, ''), 
+                        exp: cols[6]?.trim().replace(/^"|"$/g, '')  
+                    };
+                }).filter(item => item && item.q && item.ans);
+                
+                document.getElementById('file-status').innerText = `✅ You have just loaded ${fullData.length} questions`;
+                document.getElementById('max-count').innerText = fullData.length;
+                document.getElementById('range-end').value = fullData.length;
+            };
+            reader.readAsText(e.target.files[0]);
+        });
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function getRangeData() {
+            const start = parseInt(document.getElementById('range-start').value) - 1;
+            const end = parseInt(document.getElementById('range-end').value);
+            if (isNaN(start) || isNaN(end) || start < 0 || end > fullData.length) return [];
+            return fullData.slice(start, end);
+        }
+
+        function exportPDF() {
+            const data = getRangeData();
+            if (data.length === 0) return alert("Please load valid file!");
+
+            const printDiv = document.getElementById('print-section');
+            let content = `<div class="print-header">EXERCISES</div>`;
+            
+            data.forEach((item, i) => {
+                content += `
+                    <div class="print-question">
+                        <strong>Question ${i + 1}:</strong> ${item.q}<br>
+                        <div class="print-choice">A. ${item.options[0]}</div>
+                        <div class="print-choice">B. ${item.options[1]}</div>
+                        <div class="print-choice">C. ${item.options[2]}</div>
+                        <div class="print-choice">D. ${item.options[3]}</div>
+                    </div>
+                `;
+            });
+
+            content += `<div class="page-break"></div><div class="print-header">Detail answer explanation</div>`;
+            data.forEach((item, i) => {
+                const correctIdx = item.options.indexOf(item.ans);
+                const label = ["A", "B", "C", "D"][correctIdx] || "?";
+                content += `
+                    <div class="print-question">
+                        <strong>Question ${i + 1}:</strong> ${label}. ${item.ans}<br>
+                        <div style="font-style: italic; color: #444; margin-top: 5px;">${item.exp}</div>
+                    </div>
+                `;
+            });
+
+            printDiv.innerHTML = content;
+            window.print();
+        }
+
+        function startGame() {
+            currentSession = getRangeData();
+            timePerQuestion = parseInt(document.getElementById('time-limit').value) || 15;
+            
+            if (currentSession.length === 0) return alert("Please load valid file!");
+            
+            shuffle(currentSession);
+            index = 0; score = 0;
+            document.getElementById('range-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            showQuestion();
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = timePerQuestion;
+            updateTimerUI();
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerUI();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    // Hết giờ: Tự động khóa nút bấm và hiện giải thích để người học biết mình sai ở đâu, không nhảy câu đột ngột
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            document.getElementById('timer-text').innerText = timeLeft + "s";
+            const percent = (timeLeft / timePerQuestion) * 100;
+            document.getElementById('timer-bar').style.width = percent + "%";
+            document.getElementById('timer-bar').className = percent <= 30 ? "bg-red-600 h-1.5 rounded-full" : "bg-rose-500 h-1.5 rounded-full";
+        }
+
+        function showQuestion() {
+            const current = currentSession[index];
+            document.getElementById('question-text').innerText = current.q;
+            document.getElementById('progress-text').innerText = `CÂU: ${index + 1}/${currentSession.length}`;
+            document.getElementById('explanation').classList.add('hidden');
+            document.getElementById('btn-next').classList.add('hidden');
+            
+            let shuffledChoices = [...current.options];
+            shuffle(shuffledChoices);
+
+            const container = document.getElementById('choices-container');
+            container.innerHTML = ''; 
+
+            shuffledChoices.forEach((choice, i) => {
+                const label = ["A", "B", "C", "D"][i];
+                const btn = document.createElement('button');
+                btn.className = "choice-btn w-full p-4 md:p-5 rounded-xl text-left font-medium hover:bg-slate-800/80 active:scale-[0.99] transition-all whitespace-pre-wrap break-words text-sm md:text-base text-white";
+                btn.innerText = `${label}. ${choice}`;
+                btn.onclick = () => checkChoice(btn, choice, current.ans, current.exp, label);
+                container.appendChild(btn);
+            });
+
+            startTimer();
+        }
+
+        function checkChoice(btn, selected, correctAns, explanation, userLabel) {
+            clearInterval(timerInterval);
+            const allBtns = document.querySelectorAll('.choice-btn');
+            allBtns.forEach(b => b.disabled = true);
+
+            let correctLabel = "";
+            allBtns.forEach((b, i) => {
+                if (b.innerText.substring(3).trim() === correctAns.trim()) {
+                    correctLabel = ["A", "B", "C", "D"][i];
+                }
+            });
+
+            if (selected.trim() === correctAns.trim()) {
+                btn.classList.add('correct');
+                score++;
+            } else {
+                btn.classList.add('wrong');
+                allBtns.forEach(b => {
+                    if (b.innerText.substring(3).trim() === correctAns.trim()) b.classList.add('correct');
+                });
+            }
+
+            showExplanationUI(correctLabel, correctAns, explanation);
+        }
+
+        function handleTimeout() {
+            const allBtns = document.querySelectorAll('.choice-btn');
+            allBtns.forEach(b => b.disabled = true);
+
+            const current = currentSession[index];
+            let correctLabel = "";
+            
+            allBtns.forEach((b, i) => {
+                if (b.innerText.substring(3).trim() === current.ans.trim()) {
+                    b.classList.add('correct'); // Bôi xanh đáp án đúng để báo cho người học
+                    correctLabel = ["A", "B", "C", "D"][i];
+                }
+            });
+
+            showExplanationUI(correctLabel, current.ans, current.exp, "Time's up! ⏱");
+        }
+
+        function showExplanationUI(correctLabel, correctAns, explanation, customTitle = null) {
+            const expDiv = document.getElementById('explanation');
+            const title = customTitle ? `<strong class="text-red-400 block mb-1">${customTitle}</strong>` : '';
+            
+            expDiv.innerHTML = `${title}<strong class="text-sky-400">Right answer: ${correctLabel}. ${correctAns}</strong><br><span class="mt-1 block">${explanation || "Congratulation!"}</span>`;
+            expDiv.classList.remove('hidden');
+            expDiv.scrollTop = 0; 
+            
+            document.getElementById('btn-next').classList.remove('hidden');
+            document.getElementById('score-text').innerText = `Đúng: ${score}`;
+            
+            // Nếu có gắn bàn phím rời trên iPad/Surface, người dùng có thể gõ phím Enter để chuyển sang câu tiếp theo ngay lập tức
+            window.addEventListener("keydown", handleEnterNext);
+        }
+
+        function handleEnterNext(e) {
+            if (e.key === "Enter" && !document.getElementById('btn-next').classList.contains('hidden')) {
+                e.preventDefault();
+                window.removeEventListener("keydown", handleEnterNext);
+                nextQuestion();
+            }
+        }
+
+        function nextQuestion() {
+            index++;
+            if (index < currentSession.length) {
+                showQuestion();
+            } else {
+                clearInterval(timerInterval);
+                alert(`The End! The number of right answer : ${score}/${currentSession.length} .`);
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
