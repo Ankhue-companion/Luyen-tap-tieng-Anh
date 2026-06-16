@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rubik Flashcards Pro - Touch Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #0f172a; 
+            color: #f8fafc; 
+            -webkit-tap-highlight-color: transparent; /* Loại bỏ viền highlight xám khi chạm giữ trên mobile */
+        }
+        #setup-screen, #main-content { display: none; }
+        
+        /* Hiệu ứng 3D Rubik Flip mượt mà cho màn hình cảm ứng */
+        .perspective-1000 { perspective: 1000px; }
+        .rubik-panel { 
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); 
+            transform-style: preserve-3d; 
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .rubik-front, .rubik-back { 
+            backface-visibility: hidden; 
+            position: absolute; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            border-radius: 1rem;
+        }
+        .rubik-back { transform: rotateX(180deg); }
+        
+        /* Khi lật thẻ */
+        .is-flipped .rubik-panel { transform: rotateX(180deg); }
+        
+        /* Tối ưu hóa các nút tương tác đạt chuẩn vùng chạm Touch Target (Tối thiểu 48px) */
+        button, input, label {
+            min-height: 48px;
+            touch-action: manipulation; /* Khử hoàn toàn độ trễ 300ms của thao tác chạm di động */
+        }
+
+        /* Độ trễ lật tầng lớp */
+        .delay-1 { transition-delay: 0s; }
+        .delay-2 { transition-delay: 0.1s; }
+        .delay-3 { transition-delay: 0.2s; }
+
+        /* Tùy chỉnh thanh cuộn siêu mỏng cho các khung nội dung nhỏ trên mobile */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start md:justify-center p-4 pt-6 md:p-8 selection:bg-sky-500/30">
+
+    <div id="lock-screen" class="w-full max-w-md bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-slate-800 shadow-2xl text-center my-auto">
+        <div class="text-4xl md:text-5xl mb-4">🔐</div>
+        <h2 class="text-xl md:text-2xl font-bold mb-6 text-sky-400 tracking-wider">FLASHCARDS PRO</h2>
+        
+        <input type="password" id="pass-input" inputmode="numeric" pattern="[0-9]*" class="w-full bg-slate-800 border-2 border-slate-700 p-3 md:p-4 rounded-xl text-center text-xl md:text-2xl mb-4 outline-none focus:border-sky-500 text-white" placeholder="PASSWORD">
+        
+        <label class="block mb-6 bg-slate-800 p-4 rounded-xl cursor-pointer border border-dashed border-slate-600 hover:bg-slate-700 active:bg-slate-700/60 transition-all">
+            <span id="file-status" class="text-sm md:text-base">📁 Load file (CSV, 5 columns)</span>
+            <input type="file" id="csv-file" accept=".csv" class="hidden">
+        </label>
+        
+        <button onclick="verifyAccess()" class="w-full bg-sky-500 py-3.5 rounded-xl font-bold text-base md:text-lg hover:bg-sky-600 active:scale-[0.98] transition-all text-white shadow-lg">START</button>
+    </div>
+
+    <div id="setup-screen" class="w-full max-w-xl bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-slate-800 shadow-2xl my-auto">
+        <h2 class="text-xl md:text-2xl font-bold mb-6 text-emerald-400 text-center">Choose lesson</h2>
+        
+        <div class="mb-6">
+            <div class="flex justify-between items-center mb-3">
+                <label class="text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest">1. Choose fields:</label>
+                <button onclick="toggleAllCategories()" class="text-xs bg-slate-700 px-3 py-1.5 rounded-full hover:bg-sky-500 active:bg-sky-600 transition-all text-white">ALL</button>
+            </div>
+            <div id="category-list" class="flex flex-wrap gap-2 p-3 bg-slate-800/40 rounded-xl border border-slate-700 max-h-40 overflow-y-auto"></div>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">2. Number of flashcards:</label>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                    <span class="text-[10px] text-slate-500 block mb-1 uppercase">From</span>
+                    <input type="number" id="range-start" inputmode="numeric" class="w-full bg-transparent text-lg font-bold outline-none text-white" value="1">
+                </div>
+                <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                    <span class="text-[10px] text-slate-500 block mb-1 uppercase">To (Max: <span id="max-count">0</span>)</span>
+                    <input type="number" id="range-end" inputmode="numeric" class="w-full bg-transparent text-lg font-bold outline-none text-white" value="10">
+                </div>
+            </div>
+        </div>
+
+        <button onclick="startGame()" class="w-full bg-emerald-500 py-4 rounded-xl font-bold text-lg hover:bg-emerald-600 active:scale-[0.98] transition-all text-white shadow-xl">START LESSON</button>
+    </div>
+
+    <div id="main-content" class="w-full max-w-xl text-center flex flex-col justify-between">
+        <div class="flex justify-between items-center mb-3 px-1">
+            <span id="category-tag" class="bg-sky-500/20 text-sky-400 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wide">FIELD</span>
+            <span id="progress" class="font-mono text-xs md:text-sm text-slate-500">01 / 10</span>
+        </div>
+
+        <div class="w-full mx-auto mb-4 flex flex-col gap-2.5 h-[58vh] md:h-[36rem]">
+            
+            <div class="w-full h-[22%] bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center p-4 shadow-xl relative overflow-y-auto">
+                <span class="text-slate-500 text-[9px] uppercase tracking-widest absolute top-2">Question</span>
+                <p id="question-text" class="text-base md:text-xl font-bold text-white whitespace-pre-wrap break-words mt-3 px-2"></p>
+            </div>
+
+            <div id="answers-container" class="w-full h-[78%] flex flex-col gap-2.5">
+                
+                <div class="perspective-1000 h-1/3 w-full">
+                    <div class="rubik-panel delay-1">
+                        <div class="rubik-front bg-slate-800/60 border border-slate-700/60 flex items-center justify-center shadow-md">
+                            <span class="text-slate-500/40 text-2xl font-bold">?</span>
+                        </div>
+                        <div class="rubik-back bg-indigo-950/90 border border-indigo-500/40 p-4 text-left overflow-y-auto shadow-lg">
+                            <span class="text-indigo-400 text-[10px] uppercase tracking-widest mb-1 block font-bold">English Explanation</span>
+                            <p id="eng-text" class="text-indigo-100 text-sm md:text-base leading-relaxed whitespace-pre-wrap break-words"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perspective-1000 h-1/3 w-full">
+                    <div class="rubik-panel delay-2">
+                        <div class="rubik-front bg-slate-800/60 border border-slate-700/60 flex items-center justify-center shadow-md">
+                            <span class="text-slate-500/40 text-2xl font-bold">?</span>
+                        </div>
+                        <div class="rubik-back bg-emerald-950/90 border border-emerald-500/40 p-4 text-left overflow-y-auto shadow-lg">
+                            <span class="text-emerald-400 text-[10px] uppercase tracking-widest mb-1 block font-bold">Vietnamese explanation</span>
+                            <p id="vie-text" class="text-emerald-100 text-sm md:text-base leading-relaxed whitespace-pre-wrap break-words"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perspective-1000 h-1/3 w-full">
+                    <div class="rubik-panel delay-3">
+                        <div class="rubik-front bg-slate-800/60 border border-slate-700/60 flex items-center justify-center shadow-md">
+                            <span class="text-slate-500/40 text-2xl font-bold">?</span>
+                        </div>
+                        <div class="rubik-back bg-amber-950/90 border border-amber-500/40 p-4 text-left overflow-y-auto shadow-lg">
+                            <span class="text-amber-400 text-[10px] uppercase tracking-widest mb-1 block font-bold">Example</span>
+                            <p id="ex-text" class="text-amber-100 text-sm md:text-base leading-relaxed whitespace-pre-wrap break-words italic"></p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-3 items-center w-full mt-auto">
+            <button id="btn-flip" onclick="flipRubik()" class="w-full sm:w-64 bg-white text-slate-900 py-3.5 rounded-xl font-bold text-base md:text-lg hover:bg-sky-100 active:scale-[0.98] transition-all shadow-xl">ANSWER</button>
+            
+            <div class="flex gap-3 w-full sm:w-auto justify-center">
+                <button onclick="prevCard()" class="w-14 h-14 bg-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-700 border border-slate-700 text-lg text-white active:scale-95 transition-all">←</button>
+                <button onclick="nextCard()" class="flex-grow sm:flex-none w-40 bg-sky-500 py-3.5 rounded-xl font-bold hover:bg-sky-600 shadow-lg text-base md:text-lg text-white active:scale-[0.98] transition-all">NEXT</button>
+                <button onclick="location.reload()" class="w-14 h-14 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500/20 border border-red-500/20 text-lg active:scale-95 transition-all">✖</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fullData = [], filteredData = [], currentSession = [], index = 0;
+        const SECRET_PASS = "1234";
+
+        function parseCSVLine(text) {
+            let p = '', r = [];
+            let q = false;
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i];
+                if (c === '"') { q = !q; }
+                else if (c === ',' && !q) { r.push(p); p = ''; }
+                else { p += c; }
+            }
+            r.push(p);
+            return r;
+        }
+
+        document.getElementById('csv-file').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const lines = event.target.result.split(/\r?\n/);
+                fullData = lines.map(line => {
+                    if (!line.trim()) return null;
+                    const cols = parseCSVLine(line);
+                    return { 
+                        cat: cols[0]?.trim().replace(/^"|"$/g, ''), 
+                        q: cols[1]?.trim().replace(/^"|"$/g, ''), 
+                        eng: cols[2]?.trim().replace(/^"|"$/g, ''), 
+                        vie: cols[3]?.trim().replace(/^"|"$/g, ''),
+                        ex: cols[4]?.trim().replace(/^"|"$/g, '')
+                    };
+                }).filter(item => item && item.cat && item.q);
+                
+                document.getElementById('file-status').innerText = `✅ Loaded ${fullData.length} Flashcards`;
+                generateCategories();
+            };
+            reader.readAsText(e.target.files[0]);
+        });
+
+        function verifyAccess() {
+            if (document.getElementById('pass-input').value === SECRET_PASS && fullData.length > 0) {
+                document.getElementById('lock-screen').style.display = 'none';
+                document.getElementById('setup-screen').style.display = 'block';
+            } else if (fullData.length === 0) { alert("Please load file!"); } 
+            else { alert("Wrong password!"); }
+        }
+
+        // Hỗ trợ ấn Enter trên bàn phím rời để đăng nhập nhanh
+        document.getElementById("pass-input").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                verifyAccess();
+            }
+        });
+
+        function generateCategories() {
+            const categories = [...new Set(fullData.map(item => item.cat))];
+            const container = document.getElementById('category-list');
+            container.innerHTML = '';
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.innerText = cat;
+                btn.className = "cat-btn px-4 py-1.5 rounded-xl text-xs font-medium border border-slate-700 hover:border-sky-500 text-white transition-all";
+                btn.onclick = () => {
+                    btn.classList.toggle('bg-sky-500');
+                    btn.classList.toggle('border-sky-500');
+                    updateFilteredCount();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleAllCategories() {
+            const btns = document.querySelectorAll('.cat-btn');
+            btns.forEach(b => b.classList.add('bg-sky-500', 'border-sky-500'));
+            updateFilteredCount();
+        }
+
+        function updateFilteredCount() {
+            const selectedCats = Array.from(document.querySelectorAll('.cat-btn.bg-sky-500')).map(b => b.innerText);
+            filteredData = fullData.filter(item => selectedCats.includes(item.cat));
+            document.getElementById('max-count').innerText = filteredData.length;
+            document.getElementById('range-end').value = filteredData.length;
+        }
+
+        function startGame() {
+            const start = parseInt(document.getElementById('range-start').value) - 1;
+            const end = parseInt(document.getElementById('range-end').value);
+            
+            if (filteredData.length === 0) return alert("Please choose at least one field!");
+
+            currentSession = filteredData.slice(start, end);
+            for (let i = currentSession.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [currentSession[i], currentSession[j]] = [currentSession[j], currentSession[i]];
+            }
+
+            index = 0;
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            showCard();
+        }
+
+        function showCard() {
+            const card = currentSession[index];
+            
+            document.getElementById('answers-container').classList.remove('is-flipped');
+            document.getElementById('btn-flip').innerText = "ANSWER";
+            
+            document.getElementById('category-tag').innerText = card.cat;
+            document.getElementById('progress').innerText = `${String(index + 1).padStart(2, '0')} / ${currentSession.length}`;
+            document.getElementById('question-text').innerText = card.q;
+            
+            setTimeout(() => {
+                document.getElementById('eng-text').innerText = card.eng || "N/A";
+                document.getElementById('vie-text').innerText = card.vie || "N/A";
+                document.getElementById('ex-text').innerText = card.ex || "N/A";
+            }, 300);
+            
+            ['question-text', 'eng-text', 'vie-text', 'ex-text'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.parentElement) el.parentElement.scrollTop = 0;
+            });
+        }
+
+        function flipRubik() {
+            const container = document.getElementById('answers-container');
+            container.classList.toggle('is-flipped');
+            const isBack = container.classList.contains('is-flipped');
+            document.getElementById('btn-flip').innerText = isBack ? "CLOSE ANSWER" : "ANSWER";
+        }
+
+        function nextCard() {
+            index = (index + 1) % currentSession.length;
+            showCard();
+        }
+
+        function prevCard() {
+            index = (index - 1 + currentSession.length) % currentSession.length;
+            showCard();
+        }
+
+        // Tích hợp phím nóng không gian nếu kết nối bàn phím rời vật lý (iPad/Surface)
+        window.addEventListener("keydown", function(e) {
+            if (document.getElementById('main-content').style.display === 'block') {
+                if (e.key === " ") { // Bấm phím Space để lật/đóng đáp án nhanh
+                    e.preventDefault();
+                    flipRubik();
+                } else if (e.key === "ArrowRight") { // Mũi tên phải qua câu tiếp theo
+                    nextCard();
+                } else if (e.key === "ArrowLeft") { // Mũi tên trái về câu trước
+                    prevCard();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
