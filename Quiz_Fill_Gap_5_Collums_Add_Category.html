@@ -34,15 +34,16 @@
     <div id="lock-screen" class="w-full max-w-md bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl text-center">
         <div class="text-5xl mb-4">🔐</div>
         <h2 class="text-2xl font-bold mb-6 text-sky-400">Mật mã bí mật</h2>
-        <input type="password" id="pass-input" class="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-2xl text-center text-2xl mb-4 outline-none focus:border-sky-500" placeholder="****" value="1234">
-        <button onclick="checkPass()" class="w-full bg-sky-500 py-4 rounded-2xl font-bold hover:bg-sky-600 transition-all">VÀO GAME</button>
+        <!-- Đã bỏ giá trị mặc định value="1234", thay bằng placeholder hướng dẫn -->
+        <input type="password" id="pass-input" class="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-2xl text-center text-2xl mb-4 outline-none focus:border-sky-500" placeholder="Nhập mật mã của bạn..." autocomplete="off">
+        <button onclick="checkPass()" class="w-full bg-sky-500 py-4 rounded-2xl font-bold hover:bg-sky-600 transition-all">VÀO HỌC</button>
     </div>
 
     <div id="range-screen" class="w-full max-w-md bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
         <h2 class="text-2xl font-bold mb-6 text-emerald-400 text-center">Thiết lập bài học</h2>
         
         <label class="block mb-6 bg-slate-800 p-4 rounded-2xl cursor-pointer border border-dashed border-slate-600 hover:bg-slate-700 transition-all text-center">
-            <span id="file-status">📁 Nạp file CSV (5 cột: Chủ đề, Câu hỏi, Từ gốc, Đáp án, Giải thích)</span>
+            <span id="file-status">📁 Nạp file định dạng CSV (5 cột: Chủ đề, Câu hỏi, Gợi ý, Đáp án, Giải thích)</span>
             <input type="file" id="csv-file" accept=".csv" class="hidden">
         </label>
         
@@ -53,7 +54,7 @@
                 <button onclick="toggleAllTopics()" id="btn-all-topics" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg border border-slate-700 font-bold text-slate-300 transition-all">ALL</button>
             </div>
             <div id="topic-list" class="max-h-40 overflow-y-auto bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
-                <!-- Danh sách checkbox chủ đề sẽ được render tự động ở đây -->
+                <!-- Danh sách checkbox chủ đề được render tự động -->
             </div>
         </div>
 
@@ -123,16 +124,27 @@
         let fullData = [], currentSession = [], index = 0, score = 0;
         let timerInterval, timePerQuestion = 300, timeLeft = 0;
         let allTopicsSelected = true;
-        const SECRET_PASS = "1234";
+        const SECRET_PASS = "1234"; // Bạn có thể thay đổi chuỗi mật mã ở đây nếu muốn
 
         function checkPass() {
-            if (document.getElementById('pass-input').value === SECRET_PASS) {
+            const enteredPass = document.getElementById('pass-input').value;
+            if (enteredPass === SECRET_PASS) {
                 document.getElementById('lock-screen').style.display = 'none';
                 document.getElementById('range-screen').style.display = 'block';
             } else {
                 alert("Sai mật mã!");
+                document.getElementById('pass-input').value = "";
+                document.getElementById('pass-input').focus();
             }
         }
+
+        // Cho phép nhấn Enter ở ô mật mã để đăng nhập nhanh
+        document.getElementById("pass-input").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                checkPass();
+            }
+        });
 
         function parseCSVLine(text) {
             let p = '', r = [];
@@ -147,7 +159,7 @@
             return r;
         }
 
-        // Nạp file 5 cột: [0]: Chủ đề, [1]: Câu hỏi, [2]: Từ gốc, [3]: Đáp án, [4]: Giải thích
+        // Nạp file 5 cột: [0]: Chủ đề, [1]: Câu hỏi, [2]: Gợi ý, [3]: Đáp án, [4]: Giải thích
         document.getElementById('csv-file').addEventListener('change', function(e) {
             const reader = new FileReader();
             reader.onload = function(event) {
@@ -156,17 +168,16 @@
                     if (!line.trim()) return null;
                     const cols = parseCSVLine(line);
                     return { 
-                        topic:   cols[0]?.trim().replace(/^"|"$/g, ''),     // Cột 1: Chủ đề
-                        q:       cols[1]?.trim().replace(/^"|"$/g, ''),     // Cột 2: Câu hỏi
-                        keyword: cols[2]?.trim().replace(/^"|"$/g, ''),     // Cột 3: Từ gốc
-                        ans:     cols[3]?.trim().replace(/^"|"$/g, ''),     // Cột 4: Đáp án
-                        exp:     cols[4]?.trim().replace(/^"|"$/g, '')      // Cột 5: Giải thích
+                        topic:   cols[0]?.trim().replace(/^"|"$/g, ''),     
+                        q:       cols[1]?.trim().replace(/^"|"$/g, ''),     
+                        keyword: cols[2]?.trim().replace(/^"|"$/g, ''),     
+                        ans:     cols[3]?.trim().replace(/^"|"$/g, ''),     
+                        exp:     cols[4]?.trim().replace(/^"|"$/g, '')      
                     };
                 }).filter(item => item && item.q && item.ans);
                 
                 document.getElementById('file-status').innerText = `✅ Đã nạp thành công ${fullData.length} câu`;
                 
-                // Hiển thị phần chọn chủ đề và tạo danh sách checkbox chủ đề duy nhất
                 buildTopicList();
                 updateFilteredRange();
             };
@@ -224,7 +235,6 @@
             document.getElementById('range-end').value = filtered.length;
         }
 
-        // Lắng nghe sự kiện thay đổi checkbox chủ đề để tự cập nhật lại Max range
         document.addEventListener('change', function(e) {
             if(e.target.classList.contains('topic-checkbox')) {
                 updateFilteredRange();
@@ -250,13 +260,11 @@
             let data = getRangeData();
             if (data.length === 0) return alert("Vui lòng chọn chủ đề và khoảng câu hợp lệ!");
             
-            // Xáo trộn thứ tự câu đã chọn trước khi xuất PDF
             shuffle(data);
 
             const printDiv = document.getElementById('print-section');
-            let content = `<div class="print-header">BÀI TẬP ĐIỀN TỪ (WORD FORMATION)</div>`;
+            let content = `<div class="print-header">BÀI TẬP </div>`;
             
-            // Trang 1: Đề bài
             data.forEach((item, i) => {
                 content += `
                     <div class="print-question">
@@ -267,7 +275,6 @@
                 `;
             });
 
-            // Trang 2: Đáp án & Giải thích
             content += `<div class="page-break"></div><div class="print-header">HƯỚNG DẪN GIẢI CHI TIẾT</div>`;
             data.forEach((item, i) => {
                 content += `
@@ -289,7 +296,6 @@
             
             if (currentSession.length === 0) return alert("Vui lòng chọn chủ đề và khoảng câu hợp lệ!");
             
-            // Xáo trộn thứ tự câu đã chọn trước khi bắt đầu chơi
             shuffle(currentSession);
             index = 0; score = 0;
             
