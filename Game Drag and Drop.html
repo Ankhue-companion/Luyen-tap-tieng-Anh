@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Drag & Drop English Learning Game Pro v4</title>
+    <title>Drag & Drop English Learning Game Pro v5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -128,7 +128,7 @@
         let currentGameIdx = 0;
         let gameStates = {}; 
         let allTopicsSelected = true;
-        let selectedChoiceId = null; // Hỗ trợ chế độ chạm (Tap-to-Select) cho iPad
+        let selectedChoiceId = null;
         const SECRET_PASS = "1234";
 
         function checkPass() {
@@ -311,7 +311,7 @@
                     id: i,
                     q: item.q,
                     correctAns: item.ans,
-                    assignedChoiceId: null, // Sử dụng assignedChoiceId tuyệt đối bằng unique ID
+                    assignedChoiceId: null,
                     status: 'normal'
                 }));
                 let choices = chunk.map((item, i) => ({
@@ -361,7 +361,7 @@
                 qContainer.appendChild(div);
             });
 
-            // Quan trọng: Kiểm tra isUsed tuyệt đối dựa trên choice.id (hoàn toàn tách biệt các từ trùng nhau)
+            // Sử dụng chính xác choice.id để kiểm tra isUsed độc lập hoàn toàn cho từng thẻ
             state.choices.forEach(choice => {
                 let isUsed = state.questions.some(q => q.assignedChoiceId === choice.id);
                 let choiceDiv = document.createElement('div');
@@ -374,11 +374,8 @@
                     choiceDiv.innerText = choice.text;
                     choiceDiv.dataset.choiceId = choice.id;
                     
-                    // Desktop drag
                     choiceDiv.ondragstart = (e) => dragStart(e, choice.id);
-                    // Touch drag cho iPad
                     addTouchDragSupport(choiceDiv, choice.id);
-                    // Tap-to-select cho iPad/Mobile
                     choiceDiv.onclick = (e) => {
                         e.stopPropagation();
                         selectChoiceByTap(choice.id);
@@ -394,7 +391,6 @@
             });
         }
 
-        // --- Chế độ Chạm để chọn (Tap-to-Select) cho iPad ---
         function selectChoiceByTap(choiceId) {
             if (selectedChoiceId === choiceId) {
                 selectedChoiceId = null;
@@ -413,7 +409,6 @@
             }
         }
 
-        // --- Touch drag & drop support cho iPad ---
         let activeChoiceId = null;
         let ghostEl = document.getElementById('drag-ghost');
 
@@ -472,7 +467,6 @@
         function assignChoiceToQuestion(qid, choiceId) {
             const state = gameStates[currentGameIdx];
             
-            // Gỡ bỏ nếu thẻ từ cụ thể này đã được gán ở câu khác trước đó
             state.questions.forEach(q => {
                 if (q.assignedChoiceId === choiceId) {
                     q.assignedChoiceId = null;
@@ -581,7 +575,7 @@
         function prevGame() {
             if (currentGameIdx > 0) {
                 currentGameIdx--;
-                loadGameScene = loadGameScreen(currentGameIdx);
+                loadGameScreen(currentGameIdx);
             }
         }
 
@@ -608,7 +602,7 @@
                 htmlContent += `
                             </ol>
                         </div>
-                        <div style="border-top: 1px card; padding-top: 10px; text-align: center; font-size: 9pt; color: #666;">
+                        <div style="border-top: 1px solid #ccc; padding-top: 10px; text-align: center; font-size: 9pt; color: #666;">
                             Trang ${idx + 1} / ${gameChunks.length} - Được tạo bởi hệ thống học tập thông minh
                         </div>
                     </div>
