@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Drag & Drop English Learning Game Pro v5</title>
+    <title>Drag & Drop English Learning Game Pro v6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -314,8 +314,9 @@
                     assignedChoiceId: null,
                     status: 'normal'
                 }));
+                // Tạo choices với ID duy nhất hoàn toàn bằng chuỗi ngẫu nhiên (UUID-like) để tránh mọi xung đột trùng lặp
                 let choices = chunk.map((item, i) => ({
-                    id: i,
+                    id: 'c_' + i + '_' + Math.random().toString(36).substr(2, 9),
                     text: item.ans
                 }));
                 shuffle(choices);
@@ -353,7 +354,7 @@
                     <div class="drop-target w-48 bg-slate-900 border-2 border-dashed border-slate-700 rounded-xl flex items-center justify-center p-2 text-sm font-semibold text-center cursor-pointer hover:border-sky-500"
                          data-qid="${q.id}"
                          ondragover="allowDrop(event)"
-                         ondrop="dropItem(event, ${q.id})"
+                         ondrop="dropItem(event, '${q.id}')"
                          onclick="handleDropTargetClick(${q.id})">
                         ${assignedChoice ? `<span class="drag-item bg-sky-600 text-white px-3 py-1.5 rounded-lg shadow w-full inline-block truncate">${assignedChoice.text}</span>` : '<span class="text-slate-500 text-xs italic">Thả đáp án / Chạm vào đây</span>'}
                     </div>
@@ -361,7 +362,7 @@
                 qContainer.appendChild(div);
             });
 
-            // Sử dụng chính xác choice.id để kiểm tra isUsed độc lập hoàn toàn cho từng thẻ
+            // Kiểm tra isUsed tuyệt đối dựa trên choice.id (hoàn toàn tách biệt các từ trùng nhau)
             state.choices.forEach(choice => {
                 let isUsed = state.questions.some(q => q.assignedChoiceId === choice.id);
                 let choiceDiv = document.createElement('div');
@@ -457,8 +458,8 @@
 
         function dropItem(e, qid) {
             e.preventDefault();
-            const choiceId = draggedChoiceId !== null ? draggedChoiceId : (e.dataTransfer ? parseInt(e.dataTransfer.getData('text/plain')) : null);
-            if (choiceId === null || isNaN(choiceId)) return;
+            const choiceId = draggedChoiceId !== null ? draggedChoiceId : (e.dataTransfer ? e.dataTransfer.getData('text/plain') : null);
+            if (!choiceId) return;
 
             assignChoiceToQuestion(qid, choiceId);
             draggedChoiceId = null;
@@ -552,7 +553,7 @@
                 status: 'normal'
             }));
             let choices = chunk.map((item, i) => ({
-                id: i,
+                id: 'c_' + i + '_' + Math.random().toString(36).substr(2, 9),
                 text: item.ans
             }));
             shuffle(choices);
