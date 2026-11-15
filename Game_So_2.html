@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Số 2: Image & Reading Lab Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        @media print {
+            body { background: white !important; color: black !important; padding: 0 !important; }
+            #lock-screen, #setup-screen, #game-screen, .no-print { display: none !important; }
+            #print-section { display: block !important; }
+            .print-page { page-break-after: always; height: 100vh; display: flex; flex-direction: column; justify-content: space-between; padding: 15mm; box-sizing: border-box; }
+            .print-page:last-child { page-break-after: avoid; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- MÀN HÌNH 1: NHẬP MẬT KHẨU -->
+    <div id="lock-screen" class="w-full max-w-md bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl text-center">
+        <div class="text-5xl mb-4">🔐</div>
+        <h2 class="text-2xl font-bold mb-6 text-sky-400">Mật mã bí mật</h2>
+        <input type="password" id="pass-input" class="w-full bg-slate-800 border-2 border-slate-700 p-4 rounded-2xl text-center text-2xl mb-4 text-white outline-none focus:border-sky-500" placeholder="Nhập mật mã..." autocomplete="off">
+        <button onclick="checkPass()" class="w-full bg-sky-500 py-4 rounded-2xl font-bold hover:bg-sky-600 transition-all text-lg shadow-lg">VÀO GAME</button>
+    </div>
+
+    <!-- MÀN HÌNH 2: THIẾT LẬP BÀI HỌC -->
+    <div id="setup-screen" class="w-full max-w-xl bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl hidden">
+        <h2 class="text-2xl font-bold mb-6 text-emerald-400 text-center">Thiết lập Game Số 2 (Hình ảnh & Bài đọc)</h2>
+        
+        <label class="block mb-6 bg-slate-800 p-6 rounded-2xl cursor-pointer border border-dashed border-slate-600 hover:bg-slate-700 transition-all text-center">
+            <span id="file-status" class="text-slate-300 font-medium">📁 Nạp file CSV tổng (5 cột, phân cách bằng dấu ;)</span>
+            <input type="file" id="csv-file" accept=".csv" class="hidden">
+        </label>
+        
+        <div id="topic-container" class="mb-6 hidden">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs text-sky-400 uppercase font-bold tracking-wider">Chọn chủ đề</span>
+                <button onclick="toggleAllTopics()" id="btn-all-topics" class="text-xs bg-sky-600 hover:bg-sky-700 px-3 py-1 rounded-lg font-bold text-white transition-all">ALL</button>
+            </div>
+            <div id="topic-list" class="max-h-48 overflow-y-auto bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
+            <div>
+                <span class="text-xs text-slate-400 block mb-1 uppercase font-semibold">Từ bài (From)</span>
+                <input type="number" id="range-start" class="w-full bg-slate-800 p-3 rounded-xl text-center border border-slate-700 font-bold text-white" value="1">
+            </div>
+            <div>
+                <span class="text-xs text-slate-400 block mb-1 uppercase font-semibold">Đến bài (To - Max: <span id="max-count">0</span>)</span>
+                <input type="number" id="range-end" class="w-full bg-slate-800 p-3 rounded-xl text-center border border-slate-700 font-bold text-white" value="0">
+            </div>
+        </div>
+
+        <button onclick="startSession()" class="w-full bg-emerald-500 py-4 rounded-2xl font-bold hover:bg-emerald-600 transition-all text-lg shadow-lg uppercase tracking-wider">Bắt đầu học ngay</button>
+    </div>
+
+    <!-- MÀN HÌNH 3: CHƠI CHÍNH -->
+    <div id="game-screen" class="w-full max-w-6xl hidden">
+        <div class="flex justify-between items-center mb-4 px-4 bg-slate-900 py-3 rounded-2xl border border-slate-800">
+            <div class="flex items-center gap-4">
+                <span id="session-progress" class="text-sky-400 font-mono font-bold">BÀI: 1 / 1</span>
+                <span id="score-display" class="text-emerald-400 font-bold tracking-wider uppercase text-sm bg-emerald-950/40 px-3 py-1 rounded-lg border border-emerald-900/40">Đúng: 0 / 0</span>
+            </div>
+            <button onclick="backToSetup()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 font-semibold transition-all">⚙ Cài đặt lại</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
+            <!-- Cột trái: Hiển thị Hình ảnh hoặc Bài đọc từ thư mục Noi_dung_Game_So_2/ (60%) -->
+            <div class="md:col-span-7 bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 shadow-xl flex flex-col">
+                <h3 id="instruction-title" class="text-xs font-bold text-sky-400 uppercase tracking-widest mb-3">Nội dung bài học / Hình ảnh</h3>
+                <div id="content-viewer" class="flex-1 bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-center overflow-auto min-h-[400px]">
+                    <!-- Load nội dung hình ảnh hoặc text file .txt vào đây -->
+                </div>
+            </div>
+
+            <!-- Cột phải: Các ô input điền đáp án từ 1 đến 10 (40%) -->
+            <div class="md:col-span-5 bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 shadow-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">Điền đáp án theo số thứ tự</h3>
+                    <div id="inputs-container" class="space-y-3 max-h-[420px] overflow-y-auto pr-2"></div>
+                </div>
+                <div id="explanation-box" class="hidden mt-4 p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 whitespace-pre-wrap"></div>
+            </div>
+        </div>
+
+        <!-- Thanh nút chức năng phía dưới -->
+        <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl flex flex-wrap gap-3 justify-between items-center">
+            <div class="flex gap-3">
+                <button onclick="prevGame()" class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all border border-slate-700">◀ BACK</button>
+                <button onclick="nextGame()" class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-md">NEXT ▶</button>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="refreshCurrentGame()" class="bg-amber-600 hover:bg-amber-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all shadow-md">🔄 REFRESH</button>
+                <button onclick="checkAnswers()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all shadow-md">✔ CHECK</button>
+                <button onclick="showAnswers()" class="bg-purple-600 hover:bg-purple-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all shadow-md">💡 ANSWER</button>
+                <button onclick="exportPDF()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all shadow-md">🖨 PRINT PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Khu vực in ấn PDF -->
+    <div id="print-section" class="hidden"></div>
+
+    <script>
+        let fullData = [];
+        let sessionData = [];
+        let currentGameIdx = 0;
+        let gameStates = {};
+        let allTopicsSelected = true;
+        const SECRET_PASS = "1234";
+
+        function checkPass() {
+            if (document.getElementById('pass-input').value === SECRET_PASS) {
+                document.getElementById('lock-screen').style.display = 'none';
+                document.getElementById('setup-screen').style.display = 'block';
+            } else {
+                alert("Sai mật mã!");
+                document.getElementById('pass-input').value = "";
+            }
+        }
+
+        document.getElementById('pass-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') checkPass();
+        });
+
+        // Hàm phân tích cú pháp CSV hỗ trợ dấu ngoặc kép và dấu chấm phẩy phân tách đáp án (Cột 3)
+        function parseCSVLine(text) {
+            let p = '', r = [];
+            let q = false;
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i];
+                if (c === '"') { q = !q; }
+                else if (c === ',' && !q) { r.push(p); p = ''; }
+                else { p += c; }
+            }
+            r.push(p);
+            return r;
+        }
+
+        document.getElementById('csv-file').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const lines = event.target.result.split(/\r?\n/);
+                fullData = lines.map(line => {
+                    if (!line.trim()) return null;
+                    const cols = parseCSVLine(line);
+                    if (cols.length < 5) return null;
+                    
+                    // Cột 3 tách danh sách đáp án bằng dấu chấm phẩy ";"
+                    let answers = cols[2].replace(/^"|"$/g, '').split(';').map(ans => ans.trim()).filter(ans => ans.length > 0);
+
+                    return {
+                        topic: cols[0]?.trim().replace(/^"|"$/g, ''),
+                        source: cols[1]?.trim().replace(/^"|"$/g, ''), // Tên file ảnh hoặc file .txt trong thư mục Noi_dung_Game_So_2/
+                        answers: answers,
+                        instruction: cols[3]?.trim().replace(/^"|"$/g, ''),
+                        explanation: cols[4]?.trim().replace(/^"|"$/g, '')
+                    };
+                }).filter(item => item !== null && item.answers.length > 0);
+
+                document.getElementById('file-status').innerText = `✅ Đã nạp thành công ${fullData.length} bài học`;
+                buildTopicList();
+                updateFilteredRange();
+            };
+            reader.readAsText(e.target.files[0]);
+        });
+
+        function buildTopicList() {
+            const topics = [...new Set(fullData.map(item => item.topic))];
+            const container = document.getElementById('topic-list');
+            container.innerHTML = "";
+            topics.forEach(topic => {
+                const label = document.createElement('label');
+                label.className = "flex items-center space-x-2 text-sm text-slate-300 cursor-pointer hover:text-white";
+                label.innerHTML = `
+                    <input type="checkbox" value="${topic}" checked class="topic-checkbox w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0" onchange="updateFilteredRange()">
+                    <span class="truncate">${topic}</span>
+                `;
+                container.appendChild(label);
+            });
+            document.getElementById('topic-container').style.display = 'block';
+            allTopicsSelected = true;
+        }
+
+        function toggleAllTopics() {
+            allTopicsSelected = !allTopicsSelected;
+            const checkboxes = document.querySelectorAll('.topic-checkbox');
+            checkboxes.forEach(cb => cb.checked = allTopicsSelected);
+            const btn = document.getElementById('btn-all-topics');
+            btn.className = allTopicsSelected ? "text-xs bg-sky-600 hover:bg-sky-700 px-3 py-1 rounded-lg font-bold text-white transition-all" : "text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg font-bold text-slate-300 transition-all";
+            updateFilteredRange();
+        }
+
+        function getSelectedTopics() {
+            return Array.from(document.querySelectorAll('.topic-checkbox:checked')).map(cb => cb.value);
+        }
+
+        function getFilteredData() {
+            const selected = getSelectedTopics();
+            return fullData.filter(item => selected.includes(item.topic));
+        }
+
+        function updateFilteredRange() {
+            const filtered = getFilteredData();
+            document.getElementById('max-count').innerText = filtered.length;
+            document.getElementById('range-start').value = filtered.length > 0 ? 1 : 0;
+            document.getElementById('range-end').value = filtered.length;
+        }
+
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('topic-checkbox')) updateFilteredRange();
+        });
+
+        function startSession() {
+            const filtered = getFilteredData();
+            const start = parseInt(document.getElementById('range-start').value) - 1;
+            const end = parseInt(document.getElementById('range-end').value);
+            
+            if (filtered.length === 0 || start < 0 || end > filtered.length || start >= end) {
+                alert("Vui lòng kiểm tra lại khoảng bài học hoặc chọn chủ đề!");
+                return;
+            }
+
+            sessionData = filtered.slice(start, end);
+            currentGameIdx = 0;
+            gameStates = {};
+
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
+            loadGameScreen(currentGameIdx);
+        }
+
+        function backToSetup() {
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('setup-screen').style.display = 'block';
+        }
+
+        async function loadGameScreen(idx) {
+            currentGameIdx = idx;
+            const item = sessionData[idx];
+            
+            document.getElementById('session-progress').innerText = `BÀI: ${idx + 1} / ${sessionData.length}`;
+            document.getElementById('instruction-title').innerText = item.instruction || "Nội dung bài học";
+
+            // Load nội dung bên trái (Hình ảnh hoặc file .txt từ thư mục Noi_dung_Game_So_2/)
+            const viewer = document.getElementById('content-viewer');
+            viewer.innerHTML = `<span class="text-slate-500 animate-pulse text-sm">Đang tải tài nguyên...</span>`;
+
+            let src = item.source.trim();
+            let fullPath = src.startsWith('http') ? src : `Noi_dung_Game_So_2/${src}`;
+
+            if (src.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
+                viewer.innerHTML = `<img src="${fullPath}" alt="Exercise Image" class="max-h-[380px] max-w-full object-contain rounded-xl shadow">`;
+            } else if (src.match(/\.txt$/i)) {
+                try {
+                    let res = await fetch(fullPath);
+                    let text = await res.text();
+                    viewer.innerHTML = `<div class="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap p-2">${text}</div>`;
+                } catch (err) {
+                    viewer.innerHTML = `<span class="text-rose-400 text-sm">Không thể tải file văn bản: ${src}</span>`;
+                }
+            } else {
+                viewer.innerHTML = `<div class="text-slate-200 text-sm">${src}</div>`;
+            }
+
+            // Quản lý trạng thái bài làm của học sinh
+            if (!gameStates[idx]) {
+                let userAnswers = new Array(item.answers.length).fill("");
+                gameStates[idx] = { userAnswers, status: new Array(item.answers.length).fill('normal'), checked: false };
+            }
+
+            renderInputs(gameStates[idx], item);
+            updateScoreDisplay();
+        }
+
+        function renderInputs(state, item) {
+            const container = document.getElementById('inputs-container');
+            container.innerHTML = "";
+
+            item.answers.forEach((_, i) => {
+                let borderColor = 'border-slate-700';
+                let bgInput = 'bg-slate-900';
+                let textCol = 'text-white';
+
+                if (state.status[i] === 'correct') {
+                    borderColor = 'border-emerald-500';
+                    bgInput = 'bg-emerald-950/20';
+                    textCol = 'text-emerald-300';
+                } else if (state.status[i] === 'wrong') {
+                    borderColor = 'border-rose-500';
+                    bgInput = 'bg-rose-950/20';
+                    textCol = 'text-rose-300';
+                }
+
+                let div = document.createElement('div');
+                div.className = `flex items-center gap-3 bg-slate-950 p-3 rounded-xl border-2 ${borderColor} transition-all`;
+                div.innerHTML = `
+                    <span class="text-xs font-bold font-mono text-sky-400 w-6 text-right">${i + 1}.</span>
+                    <input type="text" value="${state.userAnswers[i]}" 
+                           class="flex-1 ${bgInput} border border-slate-700 px-3 py-2 rounded-lg text-sm ${textCol} outline-none focus:border-sky-500" 
+                           placeholder="Nhập đáp án số ${i + 1}..." 
+                           oninput="updateUserAnswer(${i}, this.value)">
+                `;
+                container.appendChild(div);
+            });
+
+            const expBox = document.getElementById('explanation-box');
+            if (item.explanation && state.checked) {
+                expBox.innerText = `💡 Giải thích: ${item.explanation}`;
+                expBox.classList.remove('hidden');
+            } else {
+                expBox.classList.add('hidden');
+            }
+        }
+
+        function updateUserAnswer(index, val) {
+            gameStates[currentGameIdx].userAnswers[index] = val;
+            updateScoreDisplay();
+        }
+
+        function updateScoreDisplay() {
+            const state = gameStates[currentGameIdx];
+            const item = sessionData[currentGameIdx];
+            if (!state || !item) return;
+
+            let answered = state.userAnswers.filter(ans => ans.trim() !== "").length;
+            let correct = state.userAnswers.filter((ans, i) => ans.trim().toLowerCase() === item.answers[i].trim().toLowerCase()).length;
+            document.getElementById('score-display').innerText = `Đúng: ${correct} / ${item.answers.length} (Đã điền: ${answered}/${item.answers.length})`;
+        }
+
+        function checkAnswers() {
+            const state = gameStates[currentGameIdx];
+            const item = sessionData[currentGameIdx];
+            state.checked = true;
+            let correctCount = 0;
+
+            state.userAnswers.forEach((ans, i) => {
+                if (ans.trim().toLowerCase() === item.answers[i].trim().toLowerCase()) {
+                    state.status[i] = 'correct';
+                    correctCount++;
+                } else {
+                    state.status[i] = 'wrong'; // Sai hoặc bỏ trống đều đổi sang màu đỏ
+                }
+            });
+
+            renderInputs(state, item);
+            document.getElementById('score-display').innerText = `Đúng: ${correctCount} / ${item.answers.length}`;
+        }
+
+        function showAnswers() {
+            const state = gameStates[currentGameIdx];
+            const item = sessionData[currentGameIdx];
+            state.checked = true;
+
+            item.answers.forEach((ans, i) => {
+                state.userAnswers[i] = ans;
+                state.status[i] = 'correct';
+            });
+
+            renderInputs(state, item);
+            updateScoreDisplay();
+        }
+
+        function refreshCurrentGame() {
+            const item = sessionData[currentGameIdx];
+            gameStates[currentGameIdx] = {
+                userAnswers: new Array(item.answers.length).fill(""),
+                status: new Array(item.answers.length).fill('normal'),
+                checked: false
+            };
+            loadGameScreen(currentGameIdx);
+        }
+
+        function nextGame() {
+            if (currentGameIdx < sessionData.length - 1) {
+                currentGameIdx++;
+                loadGameScreen(currentGameIdx);
+            } else {
+                alert("Bạn đã hoàn thành tất cả các bài trong phiên này!");
+            }
+        }
+
+        function prevGame() {
+            if (currentGameIdx > 0) {
+                currentGameIdx--;
+                loadGameScreen(currentGameIdx);
+            }
+        }
+
+        // Xuất bản in PDF chuẩn A4
+        function exportPDF() {
+            const printSec = document.getElementById('print-section');
+            let htmlContent = '';
+
+            sessionData.forEach((item, idx) => {
+                let fieldsHTML = '';
+                item.answers.forEach((_, i) => {
+                    fieldsHTML += `<div style="margin-bottom: 10px; font-size: 11pt;"><b>${i + 1}.</b> ........................................................................</div>`;
+                });
+
+                htmlContent += `
+                    <div class="print-page">
+                        <div>
+                            <div style="border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                                <h2 style="font-size: 16pt; font-weight: bold; margin: 0;">BÀI TẬP: ${item.topic} (Bài ${idx + 1})</h2>
+                                <span style="font-size: 11pt;">Họ tên: .......................................</span>
+                            </div>
+                            <div style="margin-bottom: 15px; font-weight: bold; font-size: 11pt;">Yêu cầu: ${item.instruction}</div>
+                            <div style="margin-bottom: 20px; text-align: center; font-style: italic; color: #555;">[ Tài liệu hình ảnh / Bài đọc tương ứng học sinh quan sát trên hệ thống ]</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                ${fieldsHTML}
+                            </div>
+                        </div>
+                        <div style="border-top: 1px solid #ccc; padding-top: 10px; text-align: center; font-size: 9pt; color: #666;">
+                            Trang ${idx + 1} / ${sessionData.length} - Hệ thống học tập thông minh
+                        </div>
+                    </div>
+                `;
+            });
+
+            printSec.innerHTML = htmlContent;
+            window.print();
+        }
+    </script>
+</body>
+</html>
